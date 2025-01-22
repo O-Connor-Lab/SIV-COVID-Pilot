@@ -1,16 +1,8 @@
-rm(list = ls())
-
-#if (!requireNamespace("BiocManager", quietly = TRUE))
-#  install.packages("BiocManager")
-#BiocManager::install("ANCOMBC")
-#BiocManager::install("mia", force = TRUE)
-
-
 library(mia)
 library(ANCOMBC)
 
 
-# Stool
+# Load in stool to tse
 tse_stool = importQIIME2(
   featureTableFile = "Data/ancombc2-data/Stool-FT.qza",
   taxonomyTableFile = "Data/taxonomy_2.qza",
@@ -21,6 +13,7 @@ tse_stool = importQIIME2(
 
 tse_stool$time = factor(tse_stool$time, levels = c("D-7", "D3", "D5", "D7", "D10", "D14"))
 
+#Run ANCOMBC2 on stool
 output_genus_stool = ancombc2(data = tse_stool, assay_name = "counts", tax_level = "Genus",
                               fix_formula = "time",
                               rand_formula = "(1 | patient)",
@@ -43,7 +36,7 @@ output_genus_stool = ancombc2(data = tse_stool, assay_name = "counts", tax_level
 
 res_prim_stool <- output_genus_stool$res 
 
-# Rectal Swab
+#Load in rectal swab for tse
 
 tse_rectal = mia::loadFromQIIME2(
   featureTableFile = "Data/ancombc2-data/RectalSwab-FT.qza",
@@ -55,6 +48,7 @@ tse_rectal = mia::loadFromQIIME2(
 
 tse_rectal$time = factor(tse_rectal$time, levels = c("D-7", "D3", "D5", "D7", "D10", "D14"))
 
+#Run ANCOMBC2 on rectal swabs
 output_genus_rectal = ancombc2(data = tse_rectal, assay_name = "counts", tax_level = "Genus",
                                fix_formula = "time",
                                rand_formula = "(1 | patient)",
@@ -77,7 +71,7 @@ output_genus_rectal = ancombc2(data = tse_rectal, assay_name = "counts", tax_lev
 
 res_prim_rectal <- output_genus_rectal$res 
 
-# Throat Swab
+# Load in throat Swab to tse
 tse_throat = mia::loadFromQIIME2(
   featureTableFile = "Data/ancombc2-data/ThroatSwab-FT.qza",
   taxonomyTableFile = "Data/taxonomy_2.qza",
@@ -88,6 +82,7 @@ tse_throat = mia::loadFromQIIME2(
 
 tse_throat$time = factor(tse_throat$time, levels = c("D-7", "D3", "D5", "D7", "D10", "D14"))
 
+#Run ANCOMBC2 on throat swabs
 output_genus_throat = ancombc2(data = tse_throat, assay_name = "counts", tax_level = "Genus",
                                fix_formula = "time",
                                rand_formula = "(1 | patient)",
@@ -110,7 +105,7 @@ output_genus_throat = ancombc2(data = tse_throat, assay_name = "counts", tax_lev
 
 res_prim_throat <- output_genus_throat$res
 
-# Nasal Swab
+# Load in nasal swabs to tse
 tse_nasal = mia::loadFromQIIME2(
   featureTableFile = "Data/ancombc2-data/NasalSwab-FT.qza",
   taxonomyTableFile = "Data/taxonomy_2.qza",
@@ -121,6 +116,7 @@ tse_nasal = mia::loadFromQIIME2(
 
 tse_nasal$time = factor(tse_nasal$time, levels = c("D-7", "D3", "D5", "D7", "D10", "D14"))
 
+#Run ANCOMBC2 on nasal swabs
 output_genus_nasal = ancombc2(data = tse_nasal, assay_name = "counts", tax_level = "Genus",
                               fix_formula = "time",
                               rand_formula = "(1 | patient)",
