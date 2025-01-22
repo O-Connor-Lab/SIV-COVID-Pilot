@@ -1,3 +1,4 @@
+#Load in packages
 library(tidyverse)
 library(reshape2)
 library(ggnewscale)
@@ -7,7 +8,6 @@ library(ggrepel)
 library(gghighlight)
 library(ggpubr)
 library(rstatix)
-
 library(qiime2R)
 
 #Reading in core file types
@@ -16,11 +16,11 @@ FeatureTable <- read_qza("Data/featuretable.qza")$data #Feature Table
 metadata<-read.table("Data/Sample-Metadata-Numeric.txt", header = TRUE) #Read in metadata
 colnames(metadata) <-  c('SampleID', 'patient', 'location', 'time') #make sure the column names are readable
 metadata$location[metadata$location == "NasalSwab"] <- "Nasal Swab" #Adjust the location labels
-metadata$location[metadata$location == "RectalSwab"] <- "Rectal Swab"
-metadata$location[metadata$location == "ThroatSwab"] <- "Tracheal Swab"
+metadata$location[metadata$location == "RectalSwab"] <- "Rectal Swab" #Adjust the location labels
+metadata$location[metadata$location == "ThroatSwab"] <- "Tracheal Swab" #Adjust the location labels
 metadata$time <- as.factor(metadata$time) #Turns numeric values into categorical values
-metadata$location <- fct_relevel(metadata$location, "Nasal Swab", "Tracheal Swab", "Rectal Swab", "Stool")
-metadata$time <- fct_relevel(metadata$time, "-7", "3", "5", "7", "10", "14")
+metadata$location <- fct_relevel(metadata$location, "Nasal Swab", "Tracheal Swab", "Rectal Swab", "Stool") #Relevels location column
+metadata$time <- fct_relevel(metadata$time, "-7", "3", "5", "7", "10", "14") #Relevels time to be chronological
 
 
 #Reads in shannon diversity from QIIME2
@@ -35,10 +35,11 @@ taxonomy<-read_qza("Data/taxonomy_2.qza") #read in taxonomy
 write.csv(taxonomy$data,"Figures/Supplemental/Taxonomy.csv")
 taxonomy<-parse_taxonomy(taxonomy$data) #Removes the confidence from the taxonomy and breaks up the taxonomy
 
-#Relative Abundance (Genus Level)
+#Saves relative abundance with taxonomical information
 taxasums <- summarize_taxa(FeatureTable, taxonomy)$Genus
 write.csv(taxasums, "Figures/Supplemental/Feature_Table.csv", row.names = TRUE)
 
+#Keeps colors consistant across figures
 col <- c("f_Lachnospiraceae" = '#DDD8EF',
          "f_Rhodocyclaceae" = '#D1C1E1', 
          "f_Ruminococcaceae" = '#C3A8D1',
@@ -90,7 +91,7 @@ col <- c("f_Lachnospiraceae" = '#DDD8EF',
          "g_Sphingomonas" = "#729C33",
          "Other" = "#777777")
 
-# Differential Abundance Load from ANCOMBC script and transform to log2
+# Load differential abundance analysis from ANCOM Differential Abundance script and transform into to log2
 DA_stool<-read.csv("Outputs/Ancombc2/ancombc2-primary-results-stool.csv") %>%
   mutate(across(lfc_timeD3:lfc_timeD14, function(x) exp(x))) %>%
   mutate(across(lfc_timeD3:lfc_timeD14, function(x) log2(x)))
@@ -99,6 +100,7 @@ DA_rectal<-read.csv("Outputs/Ancombc2/ancombc2-primary-results-rectal.csv") %>%
   mutate(across(lfc_timeD3:lfc_timeD14, function(x) exp(x))) %>%
   mutate(across(lfc_timeD3:lfc_timeD14, function(x) log2(x)))
 
+#Keep theme consistant across graphs
 theme_custom <- list(theme_classic() + theme(text = element_text(family = "Arial", colour = 'black'),
                                              strip.background = element_blank(),
                                              strip.text = element_text(size = 14, face = "bold"),
@@ -106,7 +108,7 @@ theme_custom <- list(theme_classic() + theme(text = element_text(family = "Arial
                                              axis.text = element_text(size = 14),
                                              axis.title = element_text(size = 14, family = "Arial"),
                                              aspect.ratio = 1))
-#A - Shannon Diversity
+#Shannon Diversity (5A)
 shannon_rectal <- ggplot(data = shannon[which(shannon$location == "Rectal Swab"),], aes(x = time, y = shannon_entropy, group = time)) +
   geom_boxplot(outlier.shape = NA) +
   geom_point() +
@@ -128,6 +130,7 @@ shannon_stool <- ggplot(data = shannon[which(shannon$location == "Stool"),], aes
 shannon_stool
 ggsave("Figures/Diversity/stool_shannon.png", plot = shannon_stool, scale = 1.5, width = 2.5, height = 2.5, unit = "in")
 
+#Statistical tests for shannon diversity
 friedman_stool <-
   shannon[which(shannon$location == "Stool"),] %>%
   friedman_test(shannon_entropy ~ time | patient)
@@ -142,21 +145,21 @@ friedman_Rectal <-
   shannon[which(shannon$location == "Rectal Swab"),] %>%
   friedman_test(shannon_entropy ~ time | patient)
 
-#B Relative Abundance
+#Relative Abundance (5B)
 taxa_long_genus_GI <-
   taxasums %>%
   as.data.frame() %>% #Makes it a dataframe
   rownames_to_column("Taxon") %>% #Extracts the row names into a new column
   melt(id.vars = "Taxon", variable.name = "SampleID", value.name = "Abundance", na.rm = TRUE) %>% #Makes the dataframe long
   merge(metadata, by.x = 'SampleID', all = TRUE) %>%#Adds in the metadata for each sample
-  filter(Abundance != 0) %>% # Filters out 0s to speed things up
+  filter(Abundance != 0) %>% # Filters out 0s
   filter(location != 'control') %>% #Deletes the controls
-  filter(location == 'Rectal Swab' | location == 'Stool') %>%
+  filter(location == 'Rectal Swab' | location == 'Stool') %>% #Selects GI samples
   group_by(SampleID) %>%
-  mutate(Total_Abundance = sum(Abundance)) %>%
+  mutate(Total_Abundance = sum(Abundance)) %>% #Calculates total abundance for each sample
   ungroup()  %>%
-  mutate(Relative_Abundance = Abundance/Total_Abundance) %>%
-  mutate(LTC = if_else(Relative_Abundance > 0.05, "", "Other")) %>%
+  mutate(Relative_Abundance = Abundance/Total_Abundance) %>% #Calculates relative abundance
+  mutate(LTC = if_else(Relative_Abundance > 0.05, "", "Other")) %>% #Designates any microbe that has a relative abundance of less than 5% as "Other"
   separate(Taxon, into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus"), sep = ";") %>%
   mutate(LTC = if_else(LTC == "Other", "Other", paste0("g_", str_trim(Genus)))) %>%
   mutate(LTC = if_else(LTC =="g_NA", paste0("f_", str_trim(Family)), LTC)) %>%
@@ -179,8 +182,9 @@ relative_abundance_genus_GI <- ggplot(taxa_long_genus_GI, aes(x = time,
 relative_abundance_genus_GI
 ggsave("Figures/Relative Abundance/relative_abundnace_GI_genus.png", plot = relative_abundance_genus_GI, scale =1.5, height = 2.5, width = 8.33, unit = "in")
 
-#C Differential Abundance
+#Volcano plot for differential abundance (5C)
 
+#Clean up data names
 DA_rectal_to_plot <- DA_rectal %>% 
   select(taxon, lfc_timeD3:lfc_timeD14, q_timeD3:q_timeD14) %>% 
   melt("taxon") %>%
@@ -190,7 +194,6 @@ DA_rectal_to_plot <- DA_rectal %>%
   mutate(across(Kingdom:Family,function(x) str_remove(x, pattern = "_.$"))) %>%
   rowwise() %>%
   mutate(LTC = if_else(!is.na(Genus),paste0("g_", Genus), if_else(!is.na(Family), paste0("f_",Family), if_else(!is.na(Order), Order, if_else(!is.na(Class), Class, if_else(!is.na(Phylum), Phylum, Kingdom))))))
-
 
 DA_rectal_to_plot$time = str_replace(DA_rectal_to_plot$time, "timeD", "Day ")
 DA_rectal_to_plot$time = fct_relevel(DA_rectal_to_plot$time, "Day 3", "Day 5", "Day 7", "Day 10", "Day 14")
@@ -213,7 +216,7 @@ p_rectal_volcano
 ggsave(file="Figures/Differential Abundance/DA_rectal_volcano.png", plot=p_rectal_volcano, scale = 1.5, width=5.82, height=4.82, unit = "in")
 ggsave(file="Figures/Differential Abundance/DA_rectal_volcano.png", plot=p_rectal_volcano, scale = 2, width=4, height=4, unit = "in")
 
-# D and E Relative abundance of significant taxa
+# Relative abundance of significant taxa (5D-E)
 plot_abundance_rectal <-
   taxasums %>%
   as.data.frame() %>% #Makes it a dataframe
@@ -227,7 +230,7 @@ plot_abundance_rectal <-
   ungroup()  %>%
   mutate(Relative_Abundance = Abundance/Total_Abundance) %>%
   filter(Taxon %in% c('d__Bacteria; Firmicutes; Bacilli; Lactobacillales; Streptococcaceae; Streptococcus',
-                      'd__Bacteria; Proteobacteria; Gammaproteobacteria; Aeromonadales; Succinivibrionaceae; Succinivibrio'))
+                      'd__Bacteria; Proteobacteria; Gammaproteobacteria; Aeromonadales; Succinivibrionaceae; Succinivibrio')) #Selects taxa of intrest
 
 strep_rectal <-
   plot_abundance_rectal %>%
@@ -241,7 +244,7 @@ strep_plot_rectal <- ggplot(data = strep_rectal, aes(x = time, y = Relative_Abun
   geom_point()+
   geom_line() +
   geom_bracket(
-    xmin = c("-7", "-7", "-7"), xmax = c("5", "7", "10"),
+    xmin = c("-7", "-7", "-7"), xmax = c("5", "7", "10"), #Significance comes from ANCOMBC2 calculations
     y.position = 0.2, label = c("*"), label.size = 6, size = 0.5, vjust = 0.6,
     step.increase = 0.1
   ) +
@@ -259,7 +262,7 @@ succini_plot_rectal <- ggplot(data = succini_rectal, aes(x = time, y = Relative_
   geom_point() +
   geom_line() +
   geom_bracket(
-    xmin = c("-7", "-7", "-7", "-7", "-7"), xmax = c("3", "5", "7", "10", "14"),
+    xmin = c("-7", "-7", "-7", "-7", "-7"), xmax = c("3", "5", "7", "10", "14"),  #Significance comes from ANCOMBC2 calculations
     y.position = 0.2, label = c("****", "**", "***", "****", "****"), label.size = 6, size = 0.5, vjust = 0.6,
     step.increase = 0.1
   ) +
