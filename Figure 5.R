@@ -92,10 +92,6 @@ col <- c("f_Lachnospiraceae" = '#DDD8EF',
          "Other" = "#777777")
 
 # Load differential abundance analysis from ANCOM Differential Abundance script and transform into to log2
-DA_stool<-read.csv("Outputs/Ancombc2/ancombc2-primary-results-stool.csv") %>%
-  mutate(across(lfc_timeD3:lfc_timeD14, function(x) exp(x))) %>%
-  mutate(across(lfc_timeD3:lfc_timeD14, function(x) log2(x)))
-
 DA_rectal<-read.csv("Outputs/Ancombc2/ancombc2-primary-results-rectal.csv") %>%
   mutate(across(lfc_timeD3:lfc_timeD14, function(x) exp(x))) %>%
   mutate(across(lfc_timeD3:lfc_timeD14, function(x) log2(x)))
