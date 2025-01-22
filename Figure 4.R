@@ -1,3 +1,4 @@
+#Load in Packages
 library(tidyverse)
 library(reshape2)
 library(ggnewscale)
@@ -15,11 +16,11 @@ FeatureTable <- read_qza("Data/featuretable.qza")$data #Feature Table
 metadata<-read.table("Data/Sample-Metadata-Numeric.txt", header = TRUE) #Read in metadata
 colnames(metadata) <-  c('SampleID', 'patient', 'location', 'time') #make sure the column names are readable
 metadata$location[metadata$location == "NasalSwab"] <- "Nasal Swab" #Adjust the location labels
-metadata$location[metadata$location == "RectalSwab"] <- "Rectal Swab"
-metadata$location[metadata$location == "ThroatSwab"] <- "Tracheal Swab"
+metadata$location[metadata$location == "RectalSwab"] <- "Rectal Swab" #Adjust the location labels
+metadata$location[metadata$location == "ThroatSwab"] <- "Tracheal Swab" #Adjust the location labels
 metadata$time <- as.factor(metadata$time) #Turns numeric values into categorical values
-metadata$location <- fct_relevel(metadata$location, "Nasal Swab", "Tracheal Swab", "Rectal Swab", "Stool")
-metadata$time <- fct_relevel(metadata$time, "-7", "3", "5", "7", "10", "14")
+metadata$location <- fct_relevel(metadata$location, "Nasal Swab", "Tracheal Swab", "Rectal Swab", "Stool") #Relevels location so they are in a specific order
+metadata$time <- fct_relevel(metadata$time, "-7", "3", "5", "7", "10", "14") #Relevels time so it is in chronological order
 
 
 #Reads in shannon diversity from QIIME2
@@ -29,15 +30,16 @@ shannon <- read_qza("Outputs/Diversity/rarefied-shannon.qza")$data %>%
   filter(location != 'control')
 write.csv(shannon,"Figures/Supplemental/Shannon-Diversity.csv")
 
-#Read in taxonomy
+#Read in taxonomy assigned in QIIME2
 taxonomy<-read_qza("Data/taxonomy_2.qza") #read in taxonomy
 write.csv(taxonomy$data,"Figures/Supplemental/Taxonomy.csv")
 taxonomy<-parse_taxonomy(taxonomy$data) #Removes the confidence from the taxonomy and breaks up the taxonomy
 
-#Relative Abundance (Genus Level)
+#Save feature table with taxonomical information (Genus Level)
 taxasums <- summarize_taxa(FeatureTable, taxonomy)$Genus
 write.csv(taxasums, "Figures/Supplemental/Feature_Table.csv", row.names = TRUE)
 
+#Assign consistant colors with bacteria of intrest
 col <- c("f_Lachnospiraceae" = '#DDD8EF',
          "f_Rhodocyclaceae" = '#D1C1E1', 
          "f_Ruminococcaceae" = '#C3A8D1',
@@ -86,6 +88,7 @@ col <- c("f_Lachnospiraceae" = '#DDD8EF',
          "g_Sphingomonas" = "#729C33",
          "Other" = "#777777")
 
+#Assigns theme for all graphs
 theme_custom <- list(theme_classic() + theme(text = element_text(family = "Arial", colour = 'black'),
                                              strip.background = element_blank(),
                                              strip.text = element_text(size = 14, face = "bold"),
@@ -94,7 +97,7 @@ theme_custom <- list(theme_classic() + theme(text = element_text(family = "Arial
                                              axis.title = element_text(size = 14, family = "Arial"),
                                              aspect.ratio = 1))
 
-#Shannon diversity
+#Shannon diversity (4A)
 shannon_nasal <- ggplot(data = shannon[which(shannon$location == "Nasal Swab"),], aes(x = time, y = shannon_entropy, group = time)) +
   geom_boxplot(outlier.shape = NA) +
   geom_point() +
@@ -110,8 +113,8 @@ shannon_Tracheal <- ggplot(data = shannon[which(shannon$location == "Tracheal Sw
   geom_boxplot(outlier.shape = NA) +
   geom_point() +
   geom_bracket(
-    xmin = "-7", xmax = "5", y.position = 7.65,
-    label = "*", label.size = 6, size = 0.5, vjust = 0.6) +
+    xmin = "-7", xmax = "5", y.position = 7.65,   #Label taken from Dunn's test results
+    label = "*", label.size = 6, size = 0.5, vjust = 0.6) + 
   facet_wrap(~location, nrow = 1, scales = "free",  axes = 'all') +
   xlab("Days post-SARS-CoV-2") +
   ylab("Shannon Index") +
@@ -119,6 +122,7 @@ shannon_Tracheal <- ggplot(data = shannon[which(shannon$location == "Tracheal Sw
   theme_custom +
   theme(axis.title.y = element_blank())
 
+#Statistical tests for Shannon Diversity
 friedman_Nasal <-
   shannon[which(shannon$location == "Nasal Swab"),] %>%
   friedman_test(shannon_entropy ~ time | patient)
@@ -136,21 +140,22 @@ dunn_Tracheal
 shannon_Tracheal
 ggsave("Figures/Diversity/Tracheal_shannon.png", plot = shannon_Tracheal, scale = 1.5, width = 2.5, height = 2.5, unit = "in") 
 
-#Relative Abundance
+#Relative Abundance (4B)
 taxa_long_genus_RS <-
   taxasums %>%
   as.data.frame() %>% #Makes it a dataframe
   rownames_to_column("Taxon") %>% #Extracts the row names into a new column
   melt(id.vars = "Taxon", variable.name = "SampleID", value.name = "Abundance", na.rm = TRUE) %>% #Makes the dataframe long
   merge(metadata, by.x = 'SampleID', all = TRUE) %>%#Adds in the metadata for each sample
-  filter(Abundance != 0) %>% # Filters out 0s to speed things up
-  filter(location != 'control') %>% #Deletes the controls
-  filter(location == 'Nasal Swab' | location == 'Tracheal Swab') %>%
+  filter(Abundance != 0) %>% # Filters out 0 values
+  filter(location != 'control') %>% #Filters the controls
+  filter(location == 'Nasal Swab' | location == 'Tracheal Swab') %>% #Filters for respiratory samples
   group_by(SampleID) %>%
-  mutate(Total_Abundance = sum(Abundance)) %>%
+  mutate(Total_Abundance = sum(Abundance)) %>% #Find total abundance of each sample
   ungroup()  %>%
-  mutate(Relative_Abundance = Abundance/Total_Abundance) %>%
-  mutate(LTC = if_else(Relative_Abundance > 0.1, "", "Other")) %>%
+  mutate(Relative_Abundance = Abundance/Total_Abundance) %>% #Calculate relative abundance
+  mutate(LTC = if_else(Relative_Abundance > 0.1, "", "Other")) %>% #Designate any Genus that represents less than 10% of a sample as other
+  #Clean names
   separate(Taxon, into = c("Kingdom", "Phylum", "Class", "Order", "Family", "Genus"), sep = ";") %>%
   mutate(LTC = if_else(LTC == "Other", "Other", paste0("g_", str_trim(Genus)))) %>%
   mutate(LTC = if_else(LTC =="g_NA", paste0("f_", str_trim(Family)), LTC)) %>%
@@ -172,9 +177,3 @@ relative_abundance_genus_RS <- ggplot(taxa_long_genus_RS, aes(x = time,
 
 relative_abundance_genus_RS 
 ggsave("Figures/Relative Abundance/relative_abundnace_RS_genus.png", plot = relative_abundance_genus_RS, scale =1.5, height = 2.5, width = 8.33, unit = "in")
-
-
-all <- shannon_nasal + shannon_Tracheal + free(relative_abundance_genus_RS) + plot_layout(widths = c(1, 1, 5))
-ggsave("Figures/Figure_5.png", plot = all , scale = 2, width = 15, height = 5)
-
-
